@@ -1,6 +1,7 @@
 version: '{branch}-{build}'
 
-# To create: login to AppVeyor profile and select Account->Encrypt YAML
+# on github: Settings->Developer Settings->Personal Access Tokens (public_repo scope)
+# on appveyor: login to AppVeyor profile and select Account->Encrypt YAML
 environment:
   scharlton2_access_token:
     secure: SQwCCVGXkB/yqGGz69AHQUCfefgb/7utK5QMeJZTEmw2YOTqxCv7EHmXSLdLXMwP
@@ -38,7 +39,7 @@ on_success:
         $create = @{
           "tag_name"         = "v1";
           "target_commitish" = "$env:target_commitish";
-          "name"             = "ifW 2.0"
+          "name"             = "ifw 2.0"
           "draft"            = $true
         }
         $create_json = $create | ConvertTo-Json
