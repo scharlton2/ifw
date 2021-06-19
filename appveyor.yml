@@ -1,0 +1,16 @@
+version: '{branch}-{build}'
+
+# commit messages containing [skip ci] or [skip appveyor] won't be built
+# see https://www.appveyor.com/docs/how-to/filtering-commits/
+skip_tags: true
+
+image:
+  - Visual Studio 2013
+
+# build using cmake tools
+build_script:
+  - ps: |
+      7z a ifw.7z C:\Qt\Tools\QtInstallerFramework\2.0
+      7z a -tzip -mx9 ifw.zip C:\Qt\Tools\QtInstallerFramework\2.0
+      Get-ChildItem
+
