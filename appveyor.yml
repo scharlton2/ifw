@@ -1,5 +1,10 @@
 version: '{branch}-{build}'
 
+# To create: login to AppVeyor profile and select Account->Encrypt YAML
+environment:
+  scharlton2_access_token:
+    secure: SQwCCVGXkB/yqGGz69AHQUCfefgb/7utK5QMeJZTEmw2YOTqxCv7EHmXSLdLXMwP
+
 # commit messages containing [skip ci] or [skip appveyor] won't be built
 # see https://www.appveyor.com/docs/how-to/filtering-commits/
 skip_tags: true
@@ -11,6 +16,64 @@ image:
 build_script:
   - ps: |
       7z a ifw.7z C:\Qt\Tools\QtInstallerFramework\2.0
-      7z a -tzip -mx9 ifw.zip C:\Qt\Tools\QtInstallerFramework\2.0
-      Get-ChildItem
 
+on_success:
+  - ps: |
+      if ($true) {
+        # /repos/:owner/:repo/releases
+        #
+        $releases_url = "https://api.github.com/repos/scharlton2/ifw/releases"
+        $access_token = $env:scharlton2_access_token
+
+        # create headers dictionary
+        $h = @{"Authorization" = "token $access_token"}
+
+        # Note: draft is set to true so that no notifications are sent yet
+
+        # create release
+        # POST /repos/{owner}/{repo}/releases
+        # see https://docs.github.com/en/rest/reference/repos#create-a-release
+        # see https://docs.github.com/ja/rest/reference/repos#create-a-release
+        #
+        $create = @{
+          "tag_name"         = "v1";
+          "target_commitish" = "$env:target_commitish";
+          "name"             = "ifW 2.0"
+          "draft"            = $true
+        }
+        $create_json = $create | ConvertTo-Json
+        $release = Invoke-WebRequest -Uri "$releases_url" -Headers $h -Method POST -Body $create_json
+
+        # upload artifact (asset)
+        # POST /repos/{owner}/{repo}/releases/{release_id}/assets
+        # see https://docs.github.com/en/rest/reference/repos#upload-a-release-asset
+        # see https://docs.github.com/ja/rest/reference/repos#upload-a-release-asset
+        #
+        $upload_uri = ($release.Content | ConvertFrom-Json).upload_url
+        if (! ($upload_uri -match  "(.*)\{\?name,label\}") ) {
+          # expecting URI{?name,label}
+          # ie https://uploads.github.com/repos/scharlton2/ifw/releases/24058628/assets{?name,label}
+          throw "Bad upload_url"
+        }
+        $upload_uri = $matches[1] + "?name=ifw-2.0.7z"
+        $h["Content-type"] = "application/x-7z-compressed"
+        $bytes = [System.IO.File]::ReadAllBytes("$env:APPVEYOR_BUILD_FOLDER\ifw.7z")
+        $upload = Invoke-WebRequest -Uri $upload_uri -Headers $h -Method POST -Body $bytes
+
+        # Note: draft is now set to false so that notifications are sent with the correct list of assets
+
+        # update release
+        # PATCH /repos/{owner}/{repo}/releases/{release_id}
+        # see https://docs.github.com/en/rest/reference/repos#update-a-release
+        # see https://docs.github.com/ja/rest/reference/repos#update-a-release
+        #
+        $release_id = ($release.Content | ConvertFrom-Json).id
+        $h.Remove("Content-type")
+        $update = @{ "draft" = $false }
+        $update_json = $update | ConvertTo-Json
+        $release = Invoke-WebRequest -Uri "$releases_url/$release_id" -Headers $h -Method PATCH -Body $update_json
+
+        # display download url
+        Write-Output "$((($release.Content | ConvertFrom-Json).assets).browser_download_url)"
+        Get-FileHash "$env:APPVEYOR_BUILD_FOLDER\ifw.7z"
+      }
